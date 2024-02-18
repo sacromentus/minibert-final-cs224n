@@ -154,11 +154,27 @@ class BertLayer(nn.Module):
     3. A feed forward layer.
     4. An add-norm operation that takes the input and output of the feed forward layer.
     """
-    ### TODO
-    raise NotImplementedError
 
+  # Perform Multi-head self-attention
+  attention_out = self.self_attention(hidden_states, attention_mask)
 
+  # Perform the Add & Norm after attention
+  add_norm_output = self.add_norm(hidden_states,
+                                  attention_out,
+                                  self.attention_dense,
+                                  self.attention_dropout,
+                                  self.attention_layer_norm)
 
+  # Perform feed-forward
+  ff_predense = self.interm_dense(add_norm_output)
+  ff_output = self.interm_af(ff_predense)
+
+  # Perform the Add & Norm after feed-forward
+  output = self.add_norm(add_norm_output,
+                         ff_output,
+                         self.out_dense,
+                         self.out_dropout,
+                         self.out_layer_norm)
 class BertModel(BertPreTrainedModel):
   """
   The BERT model returns the final embeddings for each token in a sentence.
