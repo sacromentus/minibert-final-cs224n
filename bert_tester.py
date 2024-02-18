@@ -127,8 +127,12 @@ class BertLayer(nn.Module):
     """
     # Hint: Remember that BERT applies dropout to the transformed output of each sub-layer,
     # before it is added to the sub-layer input and normalized with a layer norm.
-    ### TODO
-    raise NotImplementedError
+    # Hint: Remember that BERT applies to the output of each sub-layer, before it is added to the sub-layer input and normalized
+    y = dense_layer(output) # IMPORTANT: the order might have to be reversed between the two last lines
+    y = dropout(y)
+    y = y + input
+    y = ln_layer(y)
+    return y
 
 
   def forward(self, hidden_states, attention_mask):
@@ -141,8 +145,19 @@ class BertLayer(nn.Module):
     3. A feed forward layer.
     4. An add-norm operation that takes the input and output of the feed forward layer.
     """
-    ### TODO
-    raise NotImplementedError
+    # multi-head attention layer
+    y = self.self_attention(hidden_states, attention_mask)
+
+    # add-norm after multi-head attention layer
+    y = self.add_norm(hidden_states, y, self.attention_dense, self.attention_dropout, self.attention_layer_norm)
+
+    # feed forward layer
+    y_forward = self.interm_af(self.interm_dense(y))
+
+    # add-norm after feed forward layer
+    y = self.add_norm(y, y_forward, self.out_dense, self.out_dropout, self.out_layer_norm)
+
+    return y
 
 
 
@@ -184,25 +199,25 @@ class BertModel(BertPreTrainedModel):
 
     # Get word embedding from self.word_embedding into input_embeds.
     inputs_embeds = None
-    ### TODO
-    raise NotImplementedError
+    input_embeds = self.word_embedding(input_ids)
 
-
-    # Use pos_ids to get position embedding from self.pos_embedding into pos_embeds.
+    # Get position index and position embedding from self.pos_embedding into pos_embeds.
     pos_ids = self.position_ids[:, :seq_length]
+
     pos_embeds = None
-    ### TODO
-    raise NotImplementedError
+    pos_embeds = self.pos_embedding(pos_ids)
 
 
-    # Get token type ids. Since we are not considering token type, this embedding is
-    # just a placeholder.
+    # Get token type ids, since we are not consider token type, just a placeholder.
     tk_type_ids = torch.zeros(input_shape, dtype=torch.long, device=input_ids.device)
     tk_type_embeds = self.tk_type_embedding(tk_type_ids)
 
     # Add three embeddings together; then apply embed_layer_norm and dropout and return.
-    ### TODO
-    raise NotImplementedError
+    sum = input_embeds + pos_embeds + tk_type_embeds
+    y = self.embed_layer_norm(sum)
+    y = self.embed_dropout(y)
+    return y
+
 
 
   def encode(self, hidden_states, attention_mask):

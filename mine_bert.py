@@ -49,6 +49,7 @@ class BertSelfAttention(nn.Module):
     # - Before returning, concatenate multi-heads to recover the original shape:
     #   [bs, seq_len, num_attention_heads * attention_head_size = hidden_size].
 
+    # key and query have dimensions of [bs, num_attention_heads, seq_len, depth] initially
     bs, seq_len = query.shape[0], query.shape[2]
 
     # Reshape key matrix to have dimensions [bs, num_attention_heads, depth, seq_len] in order to multiply them
@@ -80,7 +81,6 @@ class BertSelfAttention(nn.Module):
     concatenated_output = weighted_values.contiguous().view(bs, seq_len, -1)
 
     return concatenated_output
-
 
   def forward(self, hidden_states, attention_mask):
     """
