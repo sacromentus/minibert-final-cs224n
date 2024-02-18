@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import math
 import torch.nn.functional as F
 from base_bert import BertPreTrainedModel
 from utils import *
@@ -51,23 +52,23 @@ class BertSelfAttention(nn.Module):
 
     bs, seq_len = query.shape[0], query.shape[2]
 
-    # Reshape key matrix to have dimensions [bs, num_attention_heads, depth, seq_len] in order to multiply them
+    # Reshape key matrix to have dimensions [bs, num_attention_heads, depth, seq_len] in order to multiply with query
     key = key.transpose(-1, -2)
 
     # Multiply query and key
-    S = query@key
+    attention_scores = query@key
 
     # Normalize S
-    S/= self.attention_head_size ** 0.5
+    attention_scores/= math.sqrt(self.attention_head_size)
 
     # Apply the masking operation to our scores to mask out padding tokens
-    S += attention_mask
+    attention_scores += attention_mask
 
     # Apply softmax to convert raw scores into probabilities across each sequence for attention weighting
-    S = F.softmax(S, dim=-1)
+    attention_scores = F.softmax(attention_scores, dim=-1)
 
     # Compute the weighted sum of value vectors
-    weighted_values = S@value
+    weighted_values = attention_scores@value
 
     # Apply dropout
     weighted_values = self.dropout(weighted_values)
@@ -77,7 +78,7 @@ class BertSelfAttention(nn.Module):
     weighted_values = weighted_values.transpose(1, 2)
 
     # Concatenate the output
-    concatenated_output = weighted_values.contiguous().view(bs, seq_len, -1)
+    concatenated_output = weighted_values.contiguous().view(bs, seq_len, self.all_head_size)
 
     return concatenated_output
 
