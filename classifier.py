@@ -4,6 +4,7 @@ import csv
 
 import torch
 import torch.nn.functional as F
+import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from sklearn.metrics import f1_score, accuracy_score
 
@@ -47,8 +48,14 @@ class BertSentimentClassifier(torch.nn.Module):
                 param.requires_grad = True
 
         # Create any instance variables you need to classify the sentiment of BERT embeddings.
-        ### TODO
-        raise NotImplementedError
+        # Create a layer size for an intermediate Linear Layer that's a multiple of hidden_size
+        intermediate_size = round(config.hidden_size / 6)
+
+        # Create the classifier layers
+        self.classifier = nn.Sequential(nn.Dropout(config.hidden_dropout_prob),
+                                        nn.Linear(config.hidden_size, intermediate_size),
+                                        nn.ReLU(),
+                                        nn.Linear(intermediate_size, config.num_labels))
 
 
     def forward(self, input_ids, attention_mask):
