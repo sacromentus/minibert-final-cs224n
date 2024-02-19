@@ -63,8 +63,13 @@ class BertSentimentClassifier(torch.nn.Module):
         # The final BERT contextualized embedding is the hidden state of [CLS] token (the first token).
         # HINT: You should consider what is an appropriate return value given that
         # the training loop currently uses F.cross_entropy as the loss function.
-        ### TODO
-        raise NotImplementedError
+        bert_dictionary = self.bert(input_ids, attention_mask)
+
+        # Extract the pooled output for the [CLS] token
+        cls_embedding = bert_dictionary['pooler_output']
+
+        # Return the logits for our classification
+        return self.classifier(cls_embedding)
 
 
 
