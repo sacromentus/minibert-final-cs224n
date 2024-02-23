@@ -49,7 +49,7 @@ class BertSentimentClassifier(torch.nn.Module):
 
         # Create any instance variables you need to classify the sentiment of BERT embeddings.
         # Create a layer size for an intermediate Linear Layer that's a multiple of hidden_size
-        intermediate_size = round(config.hidden_size / 6)
+        intermediate_size = round(config.hidden_size / 3)
 
         # Create the classifier layers
         self.classifier = nn.Sequential(nn.Dropout(config.hidden_dropout_prob),
@@ -243,7 +243,7 @@ def save_model(model, optimizer, args, config, filepath):
 
 
 def train(args):
-    device = torch.device('cuda') if args.use_gpu else torch.device('cpu')
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     # Create the data and its corresponding datasets and dataloader.
     train_data, num_labels = load_data(args.train, 'train')
     dev_data = load_data(args.dev, 'valid')
@@ -304,12 +304,12 @@ def train(args):
             best_dev_acc = dev_acc
             save_model(model, optimizer, args, config, args.filepath)
 
-        print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}")
+        print(f"Epoch {epoch} on device {device}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}")
 
 
 def test(args):
     with torch.no_grad():
-        device = torch.device('cuda') if args.use_gpu else torch.device('cpu')
+        device = "cuda" if torch.cuda.is_available() else "cpu"
         saved = torch.load(args.filepath)
         config = saved['model_config']
         model = BertSentimentClassifier(config)
