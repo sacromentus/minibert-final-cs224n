@@ -17,6 +17,7 @@ from types import SimpleNamespace
 
 import torch
 from torch import nn
+import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
@@ -71,9 +72,33 @@ class MultitaskBERT(nn.Module):
             elif config.option == 'finetune':
                 param.requires_grad = True
         # You will want to add layers here to perform the downstream tasks.
-        ### TODO
-        raise NotImplementedError
 
+        # Sentiment stack
+        self.sentiment_stack = nn.Sequential(
+            nn.Dropout(config.hidden_dropout_prob),
+            nn.Linear(config.hidden_size, N_SENTIMENT_CLASSES)
+        )
+
+        # Paraphrase Detection Stack
+        self.paraphrase_stack = nn.Sequential(
+            nn.Dropout(config.hidden_dropout_prob),
+            nn.Linear(config.hidden_size, config.hidden_size),
+            nn.BatchNorm1d(config.hidden_size),
+            nn.GELU(),
+            nn.Linear(config.hidden_size, config.hidden_size)
+        )
+
+        # Semantic Similarity stack
+        self.similarity_stack = nn.Sequential(
+            nn.Dropout(config.hidden_dropout_prob),
+            nn.Linear(config.hidden_size, config.hidden_size),
+            nn.BatchNorm1d(config.hidden_size),
+            nn.GELU(),
+            nn.Linear(config.hidden_size, config.hidden_size)
+        )
+
+        # Cosine similarity layer
+        self.cosine_similarity = nn.CosineSimilarity(dim=1, eps=1e-6)
 
     def forward(self, input_ids, attention_mask):
         'Takes a batch of sentences and produces embeddings for them.'
@@ -81,9 +106,23 @@ class MultitaskBERT(nn.Module):
         # Here, you can start by just returning the embeddings straight from BERT.
         # When thinking of improvements, you can later try modifying this
         # (e.g., by adding other layers).
-        ### TODO
-        raise NotImplementedError
 
+        # Get the last hidden state of BERT [batch_size, seq_len, hidden_state]
+        sequence_output = self.bert(input_ids, attention_mask)['last_hidden_state']
+
+        # Add a dimension to attention_mask and broadcast along this last dimension
+        # Finally convert expanded_mask to a floating point tensor
+        expanded_mask = attention_mask.unsqueeze(-1).expand(sequence_output.size()).float()
+
+        # Mask out the padding tokens by multiplying sequence_output with expanded_mask
+        # Then sum along seq_len dimension to get the sum of the embeddings
+        sum_embeddings = torch.sum(sequence_output * expanded_mask, dim=1)
+
+        # Calculate the total number of tokens in the input
+        # We use torch.clamp() to protect against an empty sentence and division by zero
+        sum_mask = torch.clamp(expanded_mask.sum(dim=1), min=1e-9)
+
+        return (sum_embeddings / sum_mask)
 
     def predict_sentiment(self, input_ids, attention_mask):
         '''Given a batch of sentences, outputs logits for classifying sentiment.
@@ -91,8 +130,9 @@ class MultitaskBERT(nn.Module):
         (0 - negative, 1- somewhat negative, 2- neutral, 3- somewhat positive, 4- positive)
         Thus, your output should contain 5 logits for each sentence.
         '''
-        ### TODO
-        raise NotImplementedError
+
+        mean_embeddings = self.forward(input_ids, attention_mask)
+        return self.sentiment_stack(mean_embeddings)
 
 
     def predict_paraphrase(self,
@@ -102,9 +142,15 @@ class MultitaskBERT(nn.Module):
         Note that your output should be unnormalized (a logit); it will be passed to the sigmoid function
         during evaluation.
         '''
-        ### TODO
-        raise NotImplementedError
+        mean_embeddings_1 = self.forward(input_ids_1, attention_mask_1)
+        mean_embeddings_2 = self.forward(input_ids_2, attention_mask_2)
 
+        # Pass the mean embeddings through the paraphrase stack
+        transformed_embeddings_1 = self.paraphrase_stack(mean_embeddings_1)
+        transformed_embeddings_2 = self.paraphrase_stack(mean_embeddings_2)
+
+        # Compute and return the cosine similarity
+        return self.cosine_similarity(transformed_embeddings_1, transformed_embeddings_2)
 
     def predict_similarity(self,
                            input_ids_1, attention_mask_1,
@@ -112,10 +158,15 @@ class MultitaskBERT(nn.Module):
         '''Given a batch of pairs of sentences, outputs a single logit corresponding to how similar they are.
         Note that your output should be unnormalized (a logit).
         '''
-        ### TODO
-        raise NotImplementedError
+        mean_embeddings_1 = self.forward(input_ids_1, attention_mask_1)
+        mean_embeddings_2 = self.forward(input_ids_2, attention_mask_2)
 
+        # Pass the mean embeddings through the paraphrase stack
+        transformed_embeddings_1 = self.similarity_stack(mean_embeddings_1)
+        transformed_embeddings_2 = self.similarity_stack(mean_embeddings_2)
 
+        # Compute and return the cosine similarity
+        return self.cosine_similarity(transformed_embeddings_1, transformed_embeddings_2)
 
 
 def save_model(model, optimizer, args, config, filepath):
