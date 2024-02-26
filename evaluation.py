@@ -13,7 +13,16 @@ from tqdm import tqdm
 import numpy as np
 
 
-TQDM_DISABLE = False
+# TQDM parameters
+TQDM_DISABLE=False
+
+green_color = "\033[92m"
+yellow_color = "\033[93m"
+reset_color = "\033[0m"
+
+# Custom progress bar format with ANSI escape code for green color and yellow text
+custom_bar_format = f"{green_color}{{l_bar}}{{bar}}{reset_color}| {yellow_color}{{n_fmt}}/{{total_fmt}} {{percentage:3.0f}}%|{{elapsed}}<{{remaining}}, {{rate_fmt}}{{postfix}}{reset_color}"
+
 
 
 # Evaluate multitask model on SST only.
@@ -58,7 +67,7 @@ def model_eval_multitask(sentiment_dataloader,
         sst_y_true = []
         sst_y_pred = []
         sst_sent_ids = []
-        for step, batch in enumerate(tqdm(sentiment_dataloader, desc=f'eval', disable=TQDM_DISABLE)):
+        for step, batch in enumerate(tqdm(sentiment_dataloader, desc=f'eval', disable=TQDM_DISABLE, bar_format=custom_bar_format)):
             b_ids, b_mask, b_labels, b_sent_ids = batch['token_ids'], batch['attention_mask'], batch['labels'], batch['sent_ids']
 
             b_ids = b_ids.to(device)
@@ -78,7 +87,7 @@ def model_eval_multitask(sentiment_dataloader,
         para_y_true = []
         para_y_pred = []
         para_sent_ids = []
-        for step, batch in enumerate(tqdm(paraphrase_dataloader, desc=f'eval', disable=TQDM_DISABLE)):
+        for step, batch in enumerate(tqdm(paraphrase_dataloader, desc=f'eval', disable=TQDM_DISABLE, bar_format=custom_bar_format)):
             (b_ids1, b_mask1,
              b_ids2, b_mask2,
              b_labels, b_sent_ids) = (batch['token_ids_1'], batch['attention_mask_1'],
@@ -104,7 +113,7 @@ def model_eval_multitask(sentiment_dataloader,
         sts_y_true = []
         sts_y_pred = []
         sts_sent_ids = []
-        for step, batch in enumerate(tqdm(sts_dataloader, desc=f'eval', disable=TQDM_DISABLE)):
+        for step, batch in enumerate(tqdm(sts_dataloader, desc=f'eval', disable=TQDM_DISABLE, bar_format=custom_bar_format)):
             (b_ids1, b_mask1,
              b_ids2, b_mask2,
              b_labels, b_sent_ids) = (batch['token_ids_1'], batch['attention_mask_1'],
@@ -146,7 +155,7 @@ def model_eval_test_multitask(sentiment_dataloader,
         # Evaluate sentiment classification.
         sst_y_pred = []
         sst_sent_ids = []
-        for step, batch in enumerate(tqdm(sentiment_dataloader, desc=f'eval', disable=TQDM_DISABLE)):
+        for step, batch in enumerate(tqdm(sentiment_dataloader, desc=f'eval', disable=TQDM_DISABLE, bar_format=custom_bar_format)):
             b_ids, b_mask, b_sent_ids = batch['token_ids'], batch['attention_mask'],  batch['sent_ids']
 
             b_ids = b_ids.to(device)
@@ -161,7 +170,7 @@ def model_eval_test_multitask(sentiment_dataloader,
         # Evaluate paraphrase detection.
         para_y_pred = []
         para_sent_ids = []
-        for step, batch in enumerate(tqdm(paraphrase_dataloader, desc=f'eval', disable=TQDM_DISABLE)):
+        for step, batch in enumerate(tqdm(paraphrase_dataloader, desc=f'eval', disable=TQDM_DISABLE, bar_format=custom_bar_format)):
             (b_ids1, b_mask1,
              b_ids2, b_mask2,
              b_sent_ids) = (batch['token_ids_1'], batch['attention_mask_1'],
@@ -182,7 +191,7 @@ def model_eval_test_multitask(sentiment_dataloader,
         # Evaluate semantic textual similarity.
         sts_y_pred = []
         sts_sent_ids = []
-        for step, batch in enumerate(tqdm(sts_dataloader, desc=f'eval', disable=TQDM_DISABLE)):
+        for step, batch in enumerate(tqdm(sts_dataloader, desc=f'eval', disable=TQDM_DISABLE, bar_format=custom_bar_format)):
             (b_ids1, b_mask1,
              b_ids2, b_mask2,
              b_sent_ids) = (batch['token_ids_1'], batch['attention_mask_1'],
