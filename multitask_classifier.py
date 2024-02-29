@@ -20,10 +20,15 @@ from torch import nn
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
+import time
+import datetime
+from datetime import datetime
+import os
 
 from bert import BertModel
 from optimizer import AdamW
 from tqdm import tqdm
+from save_results import write_results_to_file
 
 from datasets import (
     SentenceClassificationDataset,
@@ -45,6 +50,13 @@ reset_color = "\033[0m"
 # Custom progress bar format with ANSI escape code for green color and yellow text
 custom_bar_format = f"{green_color}{{l_bar}}{{bar}}{reset_color}| {yellow_color}{{n_fmt}}/{{total_fmt}} {{percentage:3.0f}}%|{{elapsed}}<{{remaining}}, {{rate_fmt}}{{postfix}}{reset_color}"
 
+
+# Create a global start time to time model training for comparison
+start_time = None
+
+
+def get_total_time(start):
+    return str(datetime.timedelta(seconds=int(time.time()-start)))
 
 # Fix the random seed.
 def seed_everything(seed=11711):
@@ -242,8 +254,19 @@ def train_multitask(args):
     model = MultitaskBERT(config)
     model = model.to(device)
 
+    if args.load_model is not None:
+        try:
+            saved = torch.load(args.load_model)
+            model.load_state_dict(saved['model'])
+            print("Model loaded successfully from", args.load_model)
+        except FileNotFoundError:
+            print("Model file not found. Make sure the file path is correct.")
+        except Exception as e:
+            print("An error occurred while loading the model:", str(e))
+
     lr = args.lr
-    optimizer = AdamW(model.parameters(), lr=lr)
+    weight_decay = args.weight_decay
+    optimizer = AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     best_dev_acc = 0
 
     best_model_results = {"Sentiment": 0, "Paraphrase": 0, "Similarity": 0}
@@ -415,6 +438,13 @@ def test_multitask(args):
                                           para_test_dataloader,
                                           sts_test_dataloader, model, device)
 
+        model_results = {
+            "Sentiment Accuracy": dev_sentiment_accuracy,
+            "Paraphrase accuracy": dev_paraphrase_accuracy,
+            "STS Corr": dev_sts_corr,
+            "Total Time": get_total_time(start_time)
+        }
+
         with open(args.sst_dev_out, "w+") as f:
             print(f"dev sentiment acc :: {dev_sentiment_accuracy :.3f}")
             f.write(f"id \t Predicted_Sentiment \n")
@@ -448,6 +478,7 @@ def test_multitask(args):
             for p, s in zip(test_sts_sent_ids, test_sts_y_pred):
                 f.write(f"{p} , {s} \n")
 
+        write_results_to_file(args, model_results)
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -483,13 +514,21 @@ def get_args():
     parser.add_argument("--hidden_dropout_prob", type=float, default=0.3)
     parser.add_argument("--lr", type=float, help="learning rate", default=1e-5)
 
+    parser.add_argument("--load_model", type=str, default=None)
+    parser.add_argument("--weight_decay", type=float, default=0.0)
+
     args = parser.parse_args()
     return args
 
 
 if __name__ == "__main__":
     args = get_args()
-    args.filepath = f'{args.option}-{args.epochs}-{args.lr}-multitask.pt' # Save path.
+    formatted_datetime = datetime.now().strftime("%Y-%m-%d_%I:%M%p")
+    args.filepath = f'{formatted_datetime}-{args.option}-{args.epochs}-{args.lr}-multitask.pt' # Save path.
     seed_everything(args.seed)  # Fix the seed for reproducibility.
+    print(f"Starting model with: Pre-Loaded Model: {args.load_model} | On GPU: {args.use_gpu} "
+          f"| Learning Rate: {args.lr} | Weight Decay: {args.weight_decay} | Batch Size: {args.batch_size}")
+    print('*'*75)
+    start_time = time.time()
     train_multitask(args)
     test_multitask(args)

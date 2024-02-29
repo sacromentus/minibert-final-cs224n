@@ -32,7 +32,7 @@ def model_eval_sst(dataloader, model, device):
     y_pred = []
     sents = []
     sent_ids = []
-    for step, batch in enumerate(tqdm(dataloader, desc=f'eval', disable=TQDM_DISABLE)):
+    for step, batch in enumerate(tqdm(dataloader, desc=f'eval', disable=TQDM_DISABLE, bar_format=custom_bar_format)):
         b_ids, b_mask, b_labels, b_sents, b_sent_ids = batch['token_ids'],batch['attention_mask'],  \
                                                         batch['labels'], batch['sents'], batch['sent_ids']
 

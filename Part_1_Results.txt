@@ -1,0 +1,5 @@
+SST-PRETRAINING: dev acc :: 0.387
+CFIMDB-PRETRAINING: dev acc :: 0.776
+
+SST-TEST: dev acc :: 0.526
+
