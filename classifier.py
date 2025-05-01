@@ -4,6 +4,7 @@ import csv
 
 import torch
 import torch.nn.functional as F
+import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from sklearn.metrics import f1_score, accuracy_score
 
@@ -47,8 +48,14 @@ class BertSentimentClassifier(torch.nn.Module):
                 param.requires_grad = True
 
         # Create any instance variables you need to classify the sentiment of BERT embeddings.
-        ### TODO
-        raise NotImplementedError
+        # Create a layer size for an intermediate Linear Layer that's a multiple of hidden_size
+        intermediate_size = round(config.hidden_size / 3)
+
+        # Create the classifier layers
+        self.classifier = nn.Sequential(nn.Dropout(config.hidden_dropout_prob),
+                                        nn.Linear(config.hidden_size, intermediate_size),
+                                        nn.ReLU(),
+                                        nn.Linear(intermediate_size, config.num_labels))
 
 
     def forward(self, input_ids, attention_mask):
@@ -56,8 +63,13 @@ class BertSentimentClassifier(torch.nn.Module):
         # The final BERT contextualized embedding is the hidden state of [CLS] token (the first token).
         # HINT: You should consider what is an appropriate return value given that
         # the training loop currently uses F.cross_entropy as the loss function.
-        ### TODO
-        raise NotImplementedError
+        bert_dictionary = self.bert(input_ids, attention_mask)
+
+        # Extract the pooled output for the [CLS] token
+        cls_embedding = bert_dictionary['pooler_output']
+
+        # Return the logits for our classification
+        return self.classifier(cls_embedding)
 
 
 
@@ -231,7 +243,7 @@ def save_model(model, optimizer, args, config, filepath):
 
 
 def train(args):
-    device = torch.device('cuda') if args.use_gpu else torch.device('cpu')
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     # Create the data and its corresponding datasets and dataloader.
     train_data, num_labels = load_data(args.train, 'train')
     dev_data = load_data(args.dev, 'valid')
@@ -292,12 +304,12 @@ def train(args):
             best_dev_acc = dev_acc
             save_model(model, optimizer, args, config, args.filepath)
 
-        print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}")
+        print(f"Epoch {epoch} on device {device}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}")
 
 
 def test(args):
     with torch.no_grad():
-        device = torch.device('cuda') if args.use_gpu else torch.device('cpu')
+        device = "cuda" if torch.cuda.is_available() else "cpu"
         saved = torch.load(args.filepath)
         config = saved['model_config']
         model = BertSentimentClassifier(config)
