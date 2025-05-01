@@ -22,7 +22,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import time
 import datetime
-from datetime import datetime
+
 import os
 
 from bert import BertModel
@@ -299,71 +299,73 @@ def train_multitask(args):
         train_acc, train_f1, *_ = model_eval_sst(sst_train_dataloader, model, device)
         dev_acc, dev_f1, *_ = model_eval_sst(sst_dev_dataloader, model, device)
 
-        if dev_acc > best_dev_acc:
-            best_dev_acc = dev_acc
-            save_model(model, optimizer, args, config, args.filepath)
+        # if dev_acc > best_dev_acc:
+        #     best_dev_acc = dev_acc
+        #     save_model(model, optimizer, args, config, args.filepath)
 
         print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}")
 
         # train on Para
-        train_loss_para = 0
-        num_batches = 0
-        for batch in tqdm(para_train_dataloader, desc=f'train-{epoch}', disable=TQDM_DISABLE, bar_format=custom_bar_format):
-            (b_ids1, b_mask1,
-             b_ids2, b_mask2,
-             b_labels, b_sent_ids) = (batch['token_ids_1'], batch['attention_mask_1'],
-                                      batch['token_ids_2'], batch['attention_mask_2'],
-                                      batch['labels'], batch['sent_ids'])
+        if not args.disable_para:
+            train_loss_para = 0
+            num_batches = 0
+            for batch in tqdm(para_train_dataloader, desc=f'train-{epoch}', disable=TQDM_DISABLE, bar_format=custom_bar_format):
+                (b_ids1, b_mask1,
+                 b_ids2, b_mask2,
+                 b_labels, b_sent_ids) = (batch['token_ids_1'], batch['attention_mask_1'],
+                                          batch['token_ids_2'], batch['attention_mask_2'],
+                                          batch['labels'], batch['sent_ids'])
 
-            b_ids1 = b_ids1.to(device)
-            b_mask1 = b_mask1.to(device)
-            b_ids2 = b_ids2.to(device)
-            b_mask2 = b_mask2.to(device)
-            b_labels = b_labels.to(device)
+                b_ids1 = b_ids1.to(device)
+                b_mask1 = b_mask1.to(device)
+                b_ids2 = b_ids2.to(device)
+                b_mask2 = b_mask2.to(device)
+                b_labels = b_labels.to(device)
 
-            optimizer.zero_grad()
-            logits = model.predict_paraphrase(b_ids1, b_mask1, b_ids2, b_mask2)
-            loss = F.binary_cross_entropy_with_logits(logits, b_labels.view(-1).float(),
-                                                      reduction='sum') / args.batch_size
+                optimizer.zero_grad()
+                logits = model.predict_paraphrase(b_ids1, b_mask1, b_ids2, b_mask2)
+                loss = F.binary_cross_entropy_with_logits(logits, b_labels.view(-1).float(),
+                                                          reduction='sum') / args.batch_size
 
-            loss.backward()
-            optimizer.step()
+                loss.backward()
+                optimizer.step()
 
-            train_loss_para += loss.item()
-            num_batches += 1
+                train_loss_para += loss.item()
+                num_batches += 1
 
-        train_loss_para = train_loss_para / (num_batches)
+            train_loss_para = train_loss_para / (num_batches)
 
-        print(f"Epoch {epoch}: Para train loss :: {train_loss_para :.3f}")
+            print(f"Epoch {epoch}: Para train loss :: {train_loss_para :.3f}")
 
         # train on STS
         train_loss_sts = 0
         num_batches = 0
-        for batch in tqdm(sts_train_dataloader, desc=f'train-{epoch}', disable=TQDM_DISABLE, bar_format=custom_bar_format):
-            (b_ids1, b_mask1,
-             b_ids2, b_mask2,
-             b_labels, b_sent_ids) = (batch['token_ids_1'], batch['attention_mask_1'],
-                                      batch['token_ids_2'], batch['attention_mask_2'],
-                                      batch['labels'], batch['sent_ids'])
+        if not args.disable_sts:
+            for batch in tqdm(sts_train_dataloader, desc=f'train-{epoch}', disable=TQDM_DISABLE, bar_format=custom_bar_format):
+                (b_ids1, b_mask1,
+                 b_ids2, b_mask2,
+                 b_labels, b_sent_ids) = (batch['token_ids_1'], batch['attention_mask_1'],
+                                          batch['token_ids_2'], batch['attention_mask_2'],
+                                          batch['labels'], batch['sent_ids'])
 
-            b_ids1 = b_ids1.to(device)
-            b_mask1 = b_mask1.to(device)
-            b_ids2 = b_ids2.to(device)
-            b_mask2 = b_mask2.to(device)
-            b_labels = b_labels.to(device)
+                b_ids1 = b_ids1.to(device)
+                b_mask1 = b_mask1.to(device)
+                b_ids2 = b_ids2.to(device)
+                b_mask2 = b_mask2.to(device)
+                b_labels = b_labels.to(device)
 
-            optimizer.zero_grad()
-            logits = model.predict_similarity(b_ids1, b_mask1, b_ids2, b_mask2)
-            loss = F.mse_loss(logits, b_labels.view(-1).float(), reduction='sum') / args.batch_size
+                optimizer.zero_grad()
+                logits = model.predict_similarity(b_ids1, b_mask1, b_ids2, b_mask2)
+                loss = F.mse_loss(logits, b_labels.view(-1).float(), reduction='sum') / args.batch_size
 
-            loss.backward()
-            optimizer.step()
+                loss.backward()
+                optimizer.step()
 
-            train_loss_sts += loss.item()
-            num_batches += 1
+                train_loss_sts += loss.item()
+                num_batches += 1
 
-        train_loss_sts = train_loss_sts / (num_batches)
-        print(f"Epoch {epoch}: STS train loss :: {train_loss_sts :.3f}")
+            train_loss_sts = train_loss_sts / (num_batches)
+            print(f"Epoch {epoch}: STS train loss :: {train_loss_sts :.3f}")
 
         # Print progress and save best model
         print(f"Train eval on epoch {epoch}:")
@@ -377,23 +379,20 @@ def train_multitask(args):
         if dev_acc > best_dev_acc:
             best_dev_acc = dev_acc
             save_model(model, optimizer, args, config, args.filepath)
-            best_model_results["Paraphrase"] = dev_paraphrase_accuracy
-            best_model_results["Sentiment"] = dev_sentiment_accuracy
-            best_model_results["Similarity"] = dev_sts_corr
-
-    print(f"{best_model_results}")
 
 
 def test_multitask(args):
     '''Test and save predictions on the dev and test sets of all three tasks.'''
-    with torch.no_grad():
-        device = torch.device('cuda') if args.use_gpu else torch.device('cpu')
-        saved = torch.load(args.filepath)
-        config = saved['model_config']
+    device = torch.device('cuda') if args.use_gpu else torch.device('cpu')
+    saved = torch.load(args.filepath)
+    config = saved['model_config']
 
-        model = MultitaskBERT(config)
-        model.load_state_dict(saved['model'])
-        model = model.to(device)
+    model = MultitaskBERT(config)
+    model.load_state_dict(saved['model'])
+    model = model.to(device)
+    model.eval()
+    with torch.inference_mode():
+
         print(f"Loaded model to test from {args.filepath}")
 
         sst_test_data, num_labels,para_test_data, sts_test_data = \
@@ -438,12 +437,6 @@ def test_multitask(args):
                                           para_test_dataloader,
                                           sts_test_dataloader, model, device)
 
-        model_results = {
-            "Sentiment Accuracy": dev_sentiment_accuracy,
-            "Paraphrase accuracy": dev_paraphrase_accuracy,
-            "STS Corr": dev_sts_corr,
-            "Total Time": get_total_time(start_time)
-        }
 
         with open(args.sst_dev_out, "w+") as f:
             print(f"dev sentiment acc :: {dev_sentiment_accuracy :.3f}")
@@ -478,7 +471,17 @@ def test_multitask(args):
             for p, s in zip(test_sts_sent_ids, test_sts_y_pred):
                 f.write(f"{p} , {s} \n")
 
-        write_results_to_file(args, model_results)
+        # Save the results to evaluation_results.csv if this is a
+        # fresh model and not simply an eval one
+        if args.eval is None:
+            model_results = {
+                "Sentiment Accuracy": dev_sentiment_accuracy,
+                "Paraphrase accuracy": dev_paraphrase_accuracy,
+                "STS Corr": dev_sts_corr,
+                "Total Time": get_total_time(start_time)
+            }
+
+            write_results_to_file(args, model_results)
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -516,6 +519,10 @@ def get_args():
 
     parser.add_argument("--load_model", type=str, default=None)
     parser.add_argument("--weight_decay", type=float, default=0.0)
+    parser.add_argument("--eval", type=str, default=None)
+
+    parser.add_argument("--disable_sts", type=bool, default=False)
+    parser.add_argument("--disable_para", type=bool, default=False)
 
     args = parser.parse_args()
     return args
@@ -523,12 +530,21 @@ def get_args():
 
 if __name__ == "__main__":
     args = get_args()
-    formatted_datetime = datetime.now().strftime("%Y-%m-%d_%I:%M%p")
-    args.filepath = f'{formatted_datetime}-{args.option}-{args.epochs}-{args.lr}-multitask.pt' # Save path.
-    seed_everything(args.seed)  # Fix the seed for reproducibility.
-    print(f"Starting model with: Pre-Loaded Model: {args.load_model} | On GPU: {args.use_gpu} "
-          f"| Learning Rate: {args.lr} | Weight Decay: {args.weight_decay} | Batch Size: {args.batch_size}")
-    print('*'*75)
-    start_time = time.time()
-    train_multitask(args)
-    test_multitask(args)
+
+    if args.eval is None:
+        formatted_datetime = datetime.datetime.now().strftime("%Y-%m-%d_%I:%M%p")
+        args.filepath = f'{formatted_datetime}-{args.option}-{args.epochs}-{args.lr}-multitask.pt'  # Save path.
+        seed_everything(args.seed)  # Fix the seed for reproducibility.
+        print(f"Starting model with: Pre-Loaded Model: {args.load_model} | On GPU: {args.use_gpu} "
+              f"| Learning Rate: {args.lr} | Weight Decay: {args.weight_decay} | Epochs : {args.epochs} | Batch Size: {args.batch_size}"
+              f" | Disbale STS: {args.disable_sts}")
+        print('*' * 150)
+        start_time = time.time()
+        train_multitask(args)
+        test_multitask(args)
+
+    else:
+        print(f"Evaluating model: {args.eval} | GPU: {args.use_gpu}")
+        print('*' * 168)
+        args.filepath = args.eval
+        test_multitask(args)
